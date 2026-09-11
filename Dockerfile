@@ -1,3 +1,12 @@
+# Stage 1: Build frontend assets
+FROM node:20 AS assets
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN npm run build
+
+# Stage 2: PHP application
 FROM php:8.3-cli
 
 RUN apt-get update && apt-get install -y \
@@ -13,6 +22,9 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www/html
 
 COPY . .
+
+# Bring in the built frontend assets from stage 1
+COPY --from=assets /app/public/build ./public/build
 
 RUN composer install --optimize-autoloader --no-dev --no-interaction
 

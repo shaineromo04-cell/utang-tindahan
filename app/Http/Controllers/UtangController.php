@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\Utang;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 
 class UtangController extends Controller
 {
@@ -35,5 +37,54 @@ class UtangController extends Controller
         return redirect()
             ->route('customers.show', $utang->customer_id)
             ->with('status', 'Utang recorded.');
+    }
+
+    public function destroy(Request $request, Utang $utang)
+    {
+        $request->validate([
+            'password' => ['required'],
+        ]);
+
+        if (! Hash::check($request->password, Auth::user()->password)) {
+            return back()->withErrors(['password' => 'Incorrect password.']);
+        }
+
+        if ($utang->balance > 0) {
+            return back()->withErrors(['delete' => 'Cannot delete an utang that still has a balance. It must be fully paid first.']);
+        }
+
+        $customerId = $utang->customer_id;
+        $utang->delete();
+
+        return redirect()
+            ->route('customers.show', $customerId)
+            ->with('status', 'Utang deleted.');
+    }
+
+    public function destroyAll(Request $request, Customer $customer)
+    {
+        $request->validate([
+            'password' => ['required'],
+        ]);
+
+        if (! Hash::check($request->password, Auth::user()->password)) {
+            return back()->withErrors(['password' => 'Incorrect password.']);
+        }
+
+        $deletable = $customer->utangs()->where('status', 'paid')->get();
+        $skippedCount = $customer->utangs()->whereIn('status', ['unpaid', 'partial'])->count();
+
+        foreach ($deletable as $utang) {
+            $utang->delete();
+        }
+
+        $message = $deletable->count() . ' paid utang(s) deleted.';
+        if ($skippedCount > 0) {
+            $message .= " {$skippedCount} unpaid/partial utang(s) were kept.";
+        }
+
+        return redirect()
+            ->route('customers.show', $customer->id)
+            ->with('status', $message);
     }
 }

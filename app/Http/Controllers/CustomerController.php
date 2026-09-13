@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class CustomerController extends Controller
 {
@@ -41,5 +43,26 @@ class CustomerController extends Controller
         $payments = $customer->payments()->latest()->with('utang')->get();
 
         return view('customers.show', compact('customer', 'utangs', 'payments'));
+    }
+
+    public function destroy(Request $request, Customer $customer)
+    {
+        $request->validate([
+            'password' => ['required'],
+        ]);
+
+        if (! Hash::check($request->password, Auth::user()->password)) {
+            return back()->withErrors(['password' => 'Incorrect password.']);
+        }
+
+        if ($customer->balance > 0) {
+            return back()->withErrors(['delete' => 'Cannot delete a customer with an outstanding balance.']);
+        }
+
+        $customer->delete();
+
+        return redirect()
+            ->route('customers.index')
+            ->with('status', 'Customer deleted.');
     }
 }
